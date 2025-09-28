@@ -1,0 +1,1035 @@
+<!DOCTYPE html>
+<html lang="es">
+  <head>
+    <meta charset="UTF-8" />
+    <link rel="icon" type="image/svg+xml" href="/vite.svg" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Hecho por Mi - Tu Guía de Conservas</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@400;500;700&display=swap" rel="stylesheet">
+    <script>
+      tailwind.config = {
+        theme: {
+          extend: {
+            fontFamily: {
+              'sans': ['Montserrat', 'sans-serif'],
+            },
+            colors: {
+              'navy': '#001f3f',
+              'light-gray': '#f8f9fa',
+            },
+            animation: {
+                'fade-in': 'fadeIn 0.3s ease-out forwards',
+                'fade-in-up': 'fadeInUp 0.3s ease-out forwards',
+            },
+            keyframes: {
+                fadeIn: {
+                    '0%': { opacity: '0' },
+                    '100%': { opacity: '1' },
+                },
+                fadeInUp: {
+                    '0%': { opacity: '0', transform: 'translateY(20px)' },
+                    '100%': { opacity: '1', transform: 'translateY(0)' },
+                }
+            }
+          }
+        }
+      }
+    </script>
+    <!-- PDF Generation Libraries -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+    <!-- Babel for JSX Transpilation -->
+    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+  <script type="importmap">
+{
+  "imports": {
+    "@google/genai": "https://aistudiocdn.com/@google/genai@^1.21.0",
+    "react-dom/client": "https://aistudiocdn.com/react-dom@^19.1.1/client",
+    "react-dom/": "https://aistudiocdn.com/react-dom@^19.1.1/",
+    "react/": "https://aistudiocdn.com/react@^19.1.1/",
+    "react": "https://aistudiocdn.com/react@^19.1.1"
+  }
+}
+</script>
+</head>
+  <body>
+    <div id="root"></div>
+    <script type="text/babel" data-type="module">
+import React, { useState, useEffect, useRef } from 'react';
+import ReactDOM from 'react-dom/client';
+import { GoogleGenAI, Type } from "@google/genai";
+
+// --- START: constants.ts ---
+const STERILIZATION_TIMES = [
+    { name: 'Frasco Amanecer 1000cc', time: 45, image: 'https://picsum.photos/seed/jar1/200' },
+    { name: 'Bote 1000cc', time: 45, image: 'https://picsum.photos/seed/can1/200' },
+    { name: 'Frasco Amanecer 360cc', time: 25, image: 'https://picsum.photos/seed/jar2/200' },
+    { name: 'Bote 433cc', time: 30, image: 'https://picsum.photos/seed/can2/200' },
+];
+
+const CATEGORIES = [
+  {
+    id: 'mermeladas',
+    name: 'Mermeladas',
+    image: 'https://picsum.photos/seed/cat-jam/400/300',
+    preserves: [
+      { id: 'mermelada-frutilla', name: 'Mermelada de Frutilla', image: 'https://picsum.photos/seed/jam-strawberry/400/300', criticalPoints: { ph: 'Menor a 3,8', brix: 'Mínimo 65° Brix' }, sterilizationTimes: STERILIZATION_TIMES },
+      { id: 'mermelada-durazno', name: 'Mermelada de Durazno', image: 'https://picsum.photos/seed/jam-peach/400/300', criticalPoints: { ph: 'Menor a 3,8', brix: 'Mínimo 65° Brix' }, sterilizationTimes: STERILIZATION_TIMES },
+      { id: 'mermelada-pera', name: 'Mermelada de Pera', image: 'https://picsum.photos/seed/jam-pear/400/300', criticalPoints: { ph: 'Menor a 3,8', brix: 'Mínimo 65° Brix' }, sterilizationTimes: STERILIZATION_TIMES },
+      { id: 'mermelada-alcayota', name: 'Mermelada de Alcayota', image: 'https://picsum.photos/seed/jam-squash/400/300', criticalPoints: { ph: 'Menor a 3,8', brix: 'Mínimo 65° Brix' }, sterilizationTimes: STERILIZATION_TIMES },
+    ],
+  },
+  {
+    id: 'jaleas',
+    name: 'Jaleas',
+    image: 'https://picsum.photos/seed/cat-jelly/400/300',
+    preserves: [
+      { id: 'jalea-membrillo', name: 'Jalea de Membrillo', image: 'https://picsum.photos/seed/jelly-quince/400/300', criticalPoints: { ph: 'Menor a 3,5', brix: 'Mínimo 65° Brix' }, sterilizationTimes: STERILIZATION_TIMES },
+      { id: 'jalea-manzana', name: 'Jalea de Manzana', image: 'https://picsum.photos/seed/jelly-apple/400/300', criticalPoints: { ph: 'Menor a 3,5', brix: 'Mínimo 65° Brix' }, sterilizationTimes: STERILIZATION_TIMES },
+    ],
+  },
+  {
+    id: 'dulces',
+    name: 'Dulces',
+    image: 'https://picsum.photos/seed/cat-sweets/400/300',
+    preserves: [
+      { id: 'dulce-membrillo', name: 'Dulce de Membrillo', image: 'https://picsum.photos/seed/sweet-quince/400/300', criticalPoints: { brix: 'Mínimo 75° Brix' }, sterilizationTimes: STERILIZATION_TIMES },
+      { id: 'dulce-batata', name: 'Dulce de Batata', image: 'https://picsum.photos/seed/sweet-potato/400/300', criticalPoints: { brix: 'Mínimo 75° Brix' }, sterilizationTimes: STERILIZATION_TIMES },
+    ],
+  },
+  {
+    id: 'frutas-almibar',
+    name: 'Frutas en almíbar',
+    image: 'https://picsum.photos/seed/cat-syrup/400/300',
+    preserves: [
+      { id: 'duraznos-almibar', name: 'Duraznos en almíbar', image: 'https://picsum.photos/seed/syrup-peach/400/300', criticalPoints: { ph: 'Menor a 4,3', brix: 'Entre 25-35° Brix' }, sterilizationTimes: STERILIZATION_TIMES },
+      { id: 'peras-almibar', name: 'Peras en almíbar', image: 'https://picsum.photos/seed/syrup-pear/400/300', criticalPoints: { ph: 'Menor a 4,3', brix: 'Entre 25-35° Brix' }, sterilizationTimes: STERILIZATION_TIMES },
+    ],
+  },
+  {
+    id: 'triturados',
+    name: 'Triturados',
+    image: 'https://picsum.photos/seed/cat-crushed/400/300',
+    preserves: [
+      { id: 'tomate-triturado', name: 'Tomate triturado', image: 'https://picsum.photos/seed/crushed-tomato/400/300', criticalPoints: { ph: 'Menor a 4,5' }, sterilizationTimes: STERILIZATION_TIMES },
+      { id: 'pimiento-triturado', name: 'Pimiento triturado (morrones)', image: 'https://picsum.photos/seed/crushed-pepper/400/300', criticalPoints: { ph: 'Menor a 4,5' }, sterilizationTimes: STERILIZATION_TIMES },
+    ],
+  },
+  {
+    id: 'encurtidos',
+    name: 'Encurtidos',
+    image: 'https://picsum.photos/seed/cat-pickles/400/300',
+    preserves: [
+        { id: 'pepinillos-vinagre', name: 'Pepinillos en vinagre', image: 'https://picsum.photos/seed/pickle-cucumber/400/300', criticalPoints: { ph: 'Menor a 4,0' }, sterilizationTimes: STERILIZATION_TIMES },
+        { id: 'cebollitas-vinagre', name: 'Cebollitas en vinagre', image: 'https://picsum.photos/seed/pickle-onion/400/300', criticalPoints: { ph: 'Menor a 4,0' }, sterilizationTimes: STERILIZATION_TIMES },
+    ],
+  },
+  {
+    id: 'salsas',
+    name: 'Salsas',
+    image: 'https://picsum.photos/seed/cat-sauces/400/300',
+    preserves: [
+        { id: 'salsa-tomate', name: 'Salsa de Tomate', image: 'https://picsum.photos/seed/sauce-tomato/400/300', criticalPoints: { ph: 'Menor a 4,5' }, sterilizationTimes: STERILIZATION_TIMES },
+        { id: 'ketchup-casero', name: 'Kétchup Casero', image: 'https://picsum.photos/seed/sauce-ketchup/400/300', criticalPoints: { ph: 'Menor a 4,0' }, sterilizationTimes: STERILIZATION_TIMES },
+    ],
+  }
+];
+// --- END: constants.ts ---
+
+// --- START: services/geminiService.ts ---
+if (!process.env.API_KEY) {
+    console.error("API_KEY environment variable not set.");
+}
+
+const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
+
+const schema = {
+  type: Type.OBJECT,
+  properties: {
+    definition: {
+      type: Type.STRING,
+      description: "La definición oficial del producto según el Código Alimentario Argentino. Debe ser concisa y precisa.",
+    },
+    process: {
+      type: Type.ARRAY,
+      description: "El proceso de elaboración paso a paso, diseñado para conservas caseras seguras.",
+      items: {
+        type: Type.OBJECT,
+        properties: {
+          id: {
+            type: Type.NUMBER,
+            description: "Un identificador numérico secuencial para el paso, comenzando en 1.",
+          },
+          title: {
+            type: Type.STRING,
+            description: "Un título breve para el paso del proceso.",
+          },
+          description: {
+            type: Type.STRING,
+            description: "Una explicación detallada del paso, enfocada en la seguridad y las buenas prácticas.",
+          },
+          shape: {
+            type: Type.STRING,
+            description: "La forma para el diagrama de flujo. Usa 'terminator' para inicio/fin, 'rectangle' para procesos, y 'diamond' para puntos de control o decisiones críticas.",
+          },
+        },
+        required: ["id", "title", "description", "shape"],
+      },
+    },
+    youtubePlaylistId: {
+        type: Type.STRING,
+        description: "El ID de una lista de reproducción de YouTube relevante con tutoriales para hacer esta conserva. Por ejemplo: 'PLASDFGHJKL12345'.",
+    }
+  },
+  required: ["definition", "process", "youtubePlaylistId"],
+};
+
+const fetchPreserveDetails = async (preserveName, mode) => {
+    try {
+        const modeInstructions = mode === 'profesional' 
+            ? "Utiliza terminología técnica y precisa, adecuada para estudiantes y profesionales de la tecnología de los alimentos. Enfócate en los fundamentos científicos de cada paso. Asegúrate de que todas las unidades de medida correspondan al sistema SIMELA y que los números decimales usen coma (ej: 4,5)."
+            : "Utiliza un lenguaje sencillo y claro, tipo 'casero', para que sea fácil de entender por familias o emprendedores. Evita la jerga técnica compleja pero sin sacrificar la precisión en los puntos clave de inocuidad. Menciona que las unidades de medida corresponden al sistema SIMELA y que los decimales usan coma (ej: 4,5). Al hablar de medir pH, recomienda usar la app 'Moracol' como una alternativa más certera a las tiras reactivas.";
+
+        const prompt = `
+            Actúa como un experto en ciencia de los alimentos y en el Código Alimentario Argentino.
+            Para el producto "${preserveName}", proporciona la siguiente información en un único objeto JSON bien formado, siguiendo estas instrucciones de estilo: "${modeInstructions}".
+
+            El objeto JSON debe contener:
+            1. definition: La definición oficial del producto tal como figura en el Código Alimentario Argentino.
+            2. process: Un proceso de elaboración detallado, paso a paso, adecuado para conservas caseras, garantizando la inocuidad alimentaria. El proceso debe estar formateado como un array de objetos. Cada objeto debe tener 'id', 'title', 'description' y 'shape'. 
+               IMPORTANTE: El diagrama de flujo DEBE comenzar con un paso \`{ "id": 1, "title": "Inicio", "shape": "terminator", "description": "Inicio del proceso de elaboración." }\` y DEBE concluir con un paso final \`{ "id": [ultimo_numero], "title": "Fin", "shape": "terminator", "description": "El producto está listo y seguro para su almacenamiento." }\`.
+               Utiliza las formas de manera lógica: 'terminator' para inicio/fin, 'rectangle' para acciones y procesos, y 'diamond' para controles de calidad o decisiones.
+            3. youtubePlaylistId: El ID de una lista de reproducción de YouTube real y relevante que contenga tutoriales sobre cómo hacer ${preserveName}. Si no encuentras una lista, proporciona el ID de un video relevante.
+
+            Asegúrate de que la respuesta sea exclusivamente el objeto JSON solicitado, sin texto adicional.
+        `;
+
+        const response = await ai.models.generateContent({
+            model: "gemini-2.5-flash",
+            contents: prompt,
+            config: {
+                responseMimeType: "application/json",
+                responseSchema: schema,
+            },
+        });
+        
+        const jsonText = response.text.trim();
+        const data = JSON.parse(jsonText);
+
+        data.process.sort((a, b) => a.id - b.id);
+        return data;
+
+    } catch (error) {
+        console.error("Error fetching data from Gemini API:", error);
+        throw new Error("No se pudieron cargar los detalles de la conserva. Por favor, inténtelo de nuevo más tarde.");
+    }
+};
+
+const fetchChatbotResponse = async (query, preserveName) => {
+    try {
+        const prompt = `
+            Actúa como un asistente experto en tecnología de los alimentos. Un usuario está aprendiendo a hacer "${preserveName}" y tiene una pregunta.
+            Explica el siguiente término o responde la siguiente pregunta de manera sencilla, clara y concisa en español de Latinoamérica.
+            Pregunta del usuario: "${query}"
+        `;
+        const response = await ai.models.generateContent({
+            model: "gemini-2.5-flash",
+            contents: prompt,
+        });
+
+        return response.text;
+    } catch (error) {
+        console.error("Error fetching data from Gemini API for chatbot:", error);
+        return "Lo siento, no pude procesar tu pregunta en este momento. Inténtalo de nuevo.";
+    }
+};
+// --- END: services/geminiService.ts ---
+
+// --- START: components/CategoryCard.tsx ---
+const CategoryCard = ({ category, onSelect }) => {
+  return (
+    <div 
+      className="bg-white rounded-2xl shadow-lg overflow-hidden cursor-pointer transform hover:scale-105 transition-transform duration-300 ease-in-out group"
+      onClick={() => onSelect(category)}
+    >
+      <img src={category.image} alt={category.name} className="w-full h-48 object-cover" />
+      <div className="p-6">
+        <h3 className="text-xl font-bold text-navy group-hover:text-blue-700 transition-colors duration-300">{category.name}</h3>
+      </div>
+    </div>
+  );
+};
+// --- END: components/CategoryCard.tsx ---
+
+// --- START: components/PreserveCard.tsx ---
+const PreserveCard = ({ preserve, onSelect }) => {
+  return (
+    <div 
+      className="bg-white rounded-2xl shadow-lg overflow-hidden cursor-pointer transform hover:scale-105 transition-transform duration-300 ease-in-out group"
+      onClick={() => onSelect(preserve)}
+    >
+      <img src={preserve.image} alt={preserve.name} className="w-full h-48 object-cover" />
+      <div className="p-6">
+        <h3 className="text-xl font-bold text-navy group-hover:text-blue-700 transition-colors duration-300">{preserve.name}</h3>
+      </div>
+    </div>
+  );
+};
+// --- END: components/PreserveCard.tsx ---
+
+// --- START: components/Flowchart.tsx ---
+const ShapeComponent = ({ shape, children, isActive }) => {
+  const baseClasses = "w-full min-h-[80px] flex items-center justify-center p-4 text-center font-semibold text-navy transition-all duration-300 cursor-pointer shadow-md";
+  const activeClasses = "bg-blue-200 border-blue-600 scale-105 shadow-xl";
+  const inactiveClasses = "bg-white border-navy hover:bg-blue-50";
+  const borderClass = "border-2";
+
+  const shapeClasses = {
+    rectangle: "rounded-lg",
+    diamond: "transform -skew-x-0 rotate-45 w-48 h-48",
+    oval: "rounded-full",
+    terminator: "rounded-full"
+  };
+  
+  const textContainerClasses = {
+    rectangle: "",
+    diamond: "transform -rotate-45",
+    oval: "",
+    terminator: ""
+  }
+
+  if (shape === 'diamond') {
+    return (
+        <div className="flex justify-center items-center my-4 h-48">
+            <div className={`${baseClasses} ${shapeClasses[shape]} ${isActive ? activeClasses : inactiveClasses} ${borderClass}`}>
+                <div className={textContainerClasses[shape]}>{children}</div>
+            </div>
+        </div>
+    );
+  }
+
+  return (
+    <div className={`${baseClasses} ${shapeClasses[shape]} ${isActive ? activeClasses : inactiveClasses} ${borderClass}`}>
+        <div className={textContainerClasses[shape]}>{children}</div>
+    </div>
+  );
+};
+
+const ArrowDown = () => (
+  <div className="flex justify-center my-2">
+    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" className="text-navy opacity-50">
+      <path d="M12 5V19M12 19L18 13M12 19L6 13" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
+    </svg>
+  </div>
+);
+
+const Flowchart = ({ steps, activeStepId, onStepClick }) => {
+  return (
+    <div>
+      <div className="max-w-md mx-auto">
+        {steps.map((step, index) => (
+          <React.Fragment key={step.id}>
+            <div onClick={() => onStepClick(step.id)}>
+              <ShapeComponent shape={step.shape} isActive={activeStepId === step.id}>
+                {step.title}
+              </ShapeComponent>
+            </div>
+            {index < steps.length - 1 && <ArrowDown />}
+          </React.Fragment>
+        ))}
+      </div>
+    </div>
+  );
+};
+// --- END: components/Flowchart.tsx ---
+
+// --- START: components/Modal.tsx ---
+const Modal = ({ isOpen, onClose, title, children }) => {
+  if (!isOpen) {
+    return null;
+  }
+
+  return (
+    <div
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="modal-title"
+      className="fixed inset-0 bg-black bg-opacity-60 z-50 flex justify-center items-center p-4 animate-fade-in"
+      onClick={onClose}
+    >
+      <div
+        className="bg-white rounded-2xl shadow-xl w-full max-w-md p-6 relative animate-fade-in-up"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <div className="flex justify-between items-start border-b border-gray-200 pb-3 mb-4">
+          <h3 id="modal-title" className="text-2xl font-bold text-navy">{title}</h3>
+          <button 
+            onClick={onClose} 
+            className="text-gray-400 hover:text-gray-800 transition-colors duration-200"
+            aria-label="Cerrar modal"
+          >
+            <svg xmlns="http://www.w3.org/2000/svg" className="h-7 w-7" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+            </svg>
+          </button>
+        </div>
+        <div className="max-h-[60vh] overflow-y-auto pr-2">
+            {children}
+        </div>
+      </div>
+    </div>
+  );
+};
+// --- END: components/Modal.tsx ---
+
+// --- START: components/Chatbot.tsx ---
+const Chatbot = ({ isOpen, onClose, preserveName }) => {
+    const [messages, setMessages] = useState([]);
+    const [input, setInput] = useState('');
+    const [isLoading, setIsLoading] = useState(false);
+    const messagesEndRef = useRef(null);
+
+    const scrollToBottom = () => {
+        messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
+    };
+
+    useEffect(scrollToBottom, [messages]);
+    
+    useEffect(() => {
+        if(isOpen) {
+            setMessages([
+                { sender: 'bot', text: `¡Hola! Soy tu asistente. ¿Tienes alguna pregunta sobre cómo hacer ${preserveName}?` }
+            ]);
+        }
+    }, [isOpen, preserveName]);
+
+    const handleSend = async () => {
+        if (input.trim() === '' || isLoading) return;
+
+        const userMessage = { sender: 'user', text: input };
+        setMessages(prev => [...prev, userMessage]);
+        setInput('');
+        setIsLoading(true);
+
+        try {
+            const botResponseText = await fetchChatbotResponse(input, preserveName);
+            const botMessage = { sender: 'bot', text: botResponseText };
+            setMessages(prev => [...prev, botMessage]);
+        } catch (error) {
+            const errorMessage = { sender: 'bot', text: "Lo siento, algo salió mal. Por favor, intenta de nuevo." };
+            setMessages(prev => [...prev, errorMessage]);
+        } finally {
+            setIsLoading(false);
+        }
+    };
+
+    return (
+        <Modal isOpen={isOpen} onClose={onClose} title="Asistente de IA">
+            <div className="flex flex-col h-[60vh]">
+                <div className="flex-1 overflow-y-auto pr-2 space-y-4">
+                    {messages.map((msg, index) => (
+                        <div key={index} className={`flex ${msg.sender === 'user' ? 'justify-end' : 'justify-start'}`}>
+                            <div className={`max-w-xs md:max-w-md lg:max-w-lg rounded-2xl px-4 py-2 ${msg.sender === 'user' ? 'bg-blue-600 text-white' : 'bg-gray-200 text-gray-800'}`}>
+                                <p className="whitespace-pre-wrap">{msg.text}</p>
+                            </div>
+                        </div>
+                    ))}
+                    {isLoading && (
+                         <div className="flex justify-start">
+                             <div className="bg-gray-200 text-gray-800 rounded-2xl px-4 py-2">
+                                <div className="flex items-center">
+                                    <span className="w-2 h-2 bg-gray-500 rounded-full animate-bounce"></span>
+                                    <span className="w-2 h-2 bg-gray-500 rounded-full animate-bounce delay-75 ml-1"></span>
+                                    <span className="w-2 h-2 bg-gray-500 rounded-full animate-bounce delay-150 ml-1"></span>
+                                </div>
+                             </div>
+                         </div>
+                    )}
+                    <div ref={messagesEndRef} />
+                </div>
+                <div className="mt-4 flex items-center border-t border-gray-200 pt-4">
+                    <input
+                        type="text"
+                        value={input}
+                        onChange={(e) => setInput(e.target.value)}
+                        onKeyPress={(e) => e.key === 'Enter' && handleSend()}
+                        placeholder="Escribe tu pregunta..."
+                        className="flex-1 border-gray-300 rounded-full py-2 px-4 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                        disabled={isLoading}
+                    />
+                    <button
+                        onClick={handleSend}
+                        disabled={isLoading || input.trim() === ''}
+                        className="ml-3 bg-navy text-white rounded-full p-2 disabled:bg-gray-400 hover:bg-blue-800 transition-colors"
+                        aria-label="Enviar mensaje"
+                    >
+                        <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6 transform rotate-90" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8" />
+                        </svg>
+                    </button>
+                </div>
+            </div>
+        </Modal>
+    );
+};
+// --- END: components/Chatbot.tsx ---
+
+// --- START: components/PreserveDetail.tsx ---
+const PreserveDetail = ({ preserve, mode, onBack }) => {
+  const [geminiData, setGeminiData] = useState(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
+  const [activeStepId, setActiveStepId] = useState(null);
+  const [isChatOpen, setChatOpen] = useState(false);
+  const [isGeneratingPdf, setIsGeneratingPdf] = useState(false);
+
+  const { jsPDF } = window.jspdf;
+  
+  const loadingMessages = [
+    "Cargando información sobre el producto...",
+    "Consultando el Código Alimentario...",
+    "Generando diagrama de flujo a medida...",
+    "Escribiendo puntos críticos de control...",
+    "Cargando los tuturiales elaborados...",
+    "¡Casi listo!",
+  ];
+  const [currentLoadingMessage, setCurrentLoadingMessage] = useState(loadingMessages[0]);
+
+  useEffect(() => {
+    const loadDetails = async () => {
+      try {
+        setLoading(true);
+        setError(null);
+        const data = await fetchPreserveDetails(preserve.name, mode);
+        setGeminiData(data);
+      } catch (e) {
+        setError(e.message || "Ocurrió un error inesperado.");
+      } finally {
+        setLoading(false);
+      }
+    };
+    loadDetails();
+  }, [preserve.name, mode]);
+  
+  useEffect(() => {
+      if (loading) {
+          let index = 0;
+          const interval = setInterval(() => {
+              index = (index + 1) % loadingMessages.length;
+              setCurrentLoadingMessage(loadingMessages[index]);
+          }, 2000);
+          return () => clearInterval(interval);
+      }
+  }, [loading]);
+
+  const handleStepClick = (id) => {
+    setActiveStepId(id);
+  };
+
+  const handleCloseModal = () => {
+    setActiveStepId(null);
+  };
+  
+  const handleDownloadPdf = async () => {
+    if (!geminiData || isGeneratingPdf) return;
+
+    setIsGeneratingPdf(true);
+    try {
+        const doc = new jsPDF();
+        const margin = 15;
+        const pageWidth = doc.internal.pageSize.getWidth();
+        const pageHeight = doc.internal.pageSize.getHeight();
+        let currentY = 20;
+
+        const schoolName = "Escuela 4-188 Padre Eduardo Sergio Iácono";
+        const now = new Date();
+        const dateTimeString = `${now.toLocaleDateString('es-AR')} ${now.toLocaleTimeString('es-AR', { hour: '2-digit', minute: '2-digit', hour12: false })}`;
+        const modeText = mode === 'profesional' ? 'Modo Profesional' : 'Modo Principiante';
+
+        // --- CONTENT GENERATION ---
+        doc.setFontSize(22);
+        doc.setFont("helvetica", "bold");
+        doc.text(preserve.name, pageWidth / 2, currentY, { align: 'center' });
+        currentY += 15;
+        
+        doc.setFontSize(16);
+        doc.setFont("helvetica", "bold");
+        doc.text("Definición del Producto", margin, currentY);
+        currentY += 8;
+        doc.setFontSize(11);
+        doc.setFont("helvetica", "normal");
+        const definitionLines = doc.splitTextToSize(geminiData.definition, pageWidth - margin * 2);
+        doc.text(definitionLines, margin, currentY);
+        currentY += definitionLines.length * 5 + 10;
+
+        if (preserve.criticalPoints) {
+            if (currentY > pageHeight - 40) { doc.addPage(); currentY = 20; }
+            doc.setFontSize(16);
+            doc.setFont("helvetica", "bold");
+            doc.text("Puntos Críticos de Control", margin, currentY);
+            currentY += 8;
+            doc.setFontSize(11);
+            doc.setFont("helvetica", "normal");
+            if (preserve.criticalPoints.ph) {
+                doc.text(`- pH Objetivo: ${preserve.criticalPoints.ph}`, margin, currentY);
+                currentY += 6;
+            }
+            if (preserve.criticalPoints.brix) {
+                doc.text(`- Brix Objetivo: ${preserve.criticalPoints.brix}`, margin, currentY);
+                currentY += 6;
+            }
+            currentY += 10;
+        }
+
+        if (currentY > pageHeight - 40) { doc.addPage(); currentY = 20; }
+        doc.setFontSize(16);
+        doc.setFont("helvetica", "bold");
+        doc.text("Proceso de Elaboración", margin, currentY);
+        currentY += 8;
+
+        geminiData.process.forEach(step => {
+            const titleLines = doc.splitTextToSize(`${step.id}. ${step.title}`, pageWidth - margin * 2);
+            const descLines = doc.splitTextToSize(step.description, pageWidth - margin * 2 - 5);
+            const stepHeight = (titleLines.length * 6) + (descLines.length * 5) + 8;
+            
+            if (currentY + stepHeight > pageHeight - margin) {
+                doc.addPage();
+                currentY = 20;
+            }
+            doc.setFontSize(12);
+            doc.setFont("helvetica", "bold");
+            doc.text(titleLines, margin, currentY);
+            currentY += titleLines.length * 6;
+            
+            doc.setFontSize(11);
+            doc.setFont("helvetica", "normal");
+            doc.text(descLines, margin + 5, currentY);
+            currentY += descLines.length * 5 + 8;
+        });
+
+        const youtubeUrl = `https://www.youtube.com/playlist?list=${geminiData.youtubePlaylistId}`;
+        const toDataURL = (url) => fetch(url)
+            .then(response => response.blob())
+            .then(blob => new Promise((resolve, reject) => {
+                const reader = new FileReader();
+                reader.onloadend = () => resolve(reader.result);
+                reader.onerror = reject;
+                reader.readAsDataURL(blob);
+            }));
+        const qrCodeApiUrl = `https://api.qrserver.com/v1/create-qr-code/?size=150x150&data=${encodeURIComponent(youtubeUrl)}`;
+        const qrCodeBase64 = await toDataURL(qrCodeApiUrl);
+        if (currentY > pageHeight - 80) { doc.addPage(); currentY = 20; }
+        doc.setFontSize(16);
+        doc.setFont("helvetica", "bold");
+        doc.text("Tutoriales en Video", margin, currentY);
+        currentY += 8;
+        doc.setFontSize(11);
+        doc.setFont("helvetica", "normal");
+        doc.setTextColor(0, 0, 238);
+        doc.textWithLink("Ver la lista de reproducción en YouTube", margin, currentY, { url: youtubeUrl });
+        doc.setTextColor(0);
+        currentY += 10;
+        doc.addImage(qrCodeBase64, 'PNG', margin, currentY, 40, 40);
+        currentY += 50;
+
+
+        const footerText = `Extraído de la App Hecho por Mi de la ${schoolName}.`;
+        if (currentY + 20 > pageHeight - margin) { doc.addPage(); currentY = 20; }
+        doc.setFontSize(10);
+        doc.setFont("helvetica", "italic");
+        doc.text(footerText, pageWidth / 2, pageHeight - 20, { align: 'center' });
+
+        const totalPages = doc.internal.getNumberOfPages();
+        for (let i = 1; i <= totalPages; i++) {
+            doc.setPage(i);
+            doc.setFontSize(8);
+            doc.setFont("helvetica", "normal");
+            doc.setTextColor(150);
+            doc.text(`Descargado: ${dateTimeString} - ${modeText}`, margin, 10);
+            doc.text(`Página ${i} de ${totalPages}`, pageWidth - margin, 10, { align: 'right' });
+            doc.setTextColor(0);
+        }
+
+        doc.save(`Guia_${preserve.name.replace(/\s/g, '_')}.pdf`);
+    } catch (err) {
+        console.error("Error generating PDF:", err);
+        alert("Hubo un error al generar el PDF. Por favor, intenta de nuevo.");
+    } finally {
+        setIsGeneratingPdf(false);
+    }
+  };
+  
+  const LoadingSpinner = ({ message }) => (
+    <div className="flex flex-col items-center justify-center p-8 text-navy">
+        <svg className="animate-spin -ml-1 mr-3 h-10 w-10 text-navy" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+            <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+            <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+        </svg>
+        <p className="mt-4 text-lg">{message}</p>
+    </div>
+  );
+
+  const Section = ({ title, children }) => (
+    <div className="bg-white p-6 rounded-2xl shadow-md mb-8">
+        <h3 className="text-2xl font-bold text-navy mb-4 border-b-2 border-gray-200 pb-2">{title}</h3>
+        {children}
+    </div>
+  );
+
+  const activeStep = geminiData?.process.find(step => step.id === activeStepId);
+
+  return (
+    <div className="max-w-4xl mx-auto p-4 md:p-8">
+      <div className="flex justify-between items-center mb-8">
+        <button 
+          onClick={onBack} 
+          className="bg-navy text-white font-bold py-2 px-6 rounded-full hover:bg-blue-800 transition-colors duration-300 flex items-center shadow-lg"
+        >
+          <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 19l-7-7m0 0l7-7m-7 7h18" />
+          </svg>
+          Volver
+        </button>
+         <button 
+          onClick={handleDownloadPdf} 
+          disabled={!geminiData || isGeneratingPdf}
+          className="bg-green-600 text-white font-bold py-2 px-6 rounded-full hover:bg-green-700 transition-colors duration-300 flex items-center justify-center shadow-lg disabled:bg-gray-400 disabled:cursor-not-allowed w-56"
+        >
+            {isGeneratingPdf ? (
+                <>
+                    <svg className="animate-spin -ml-1 mr-3 h-5 w-5 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                        <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                        <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                    </svg>
+                    Generando...
+                </>
+            ) : (
+                <>
+                    <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 mr-2" viewBox="0 0 20 20" fill="currentColor">
+                        <path fillRule="evenodd" d="M3 17a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1zm3.293-7.707a1 1 0 011.414 0L9 10.586V3a1 1 0 112 0v7.586l1.293-1.293a1 1 0 111.414 1.414l-3 3a1 1 0 01-1.414 0l-3-3a1 1 0 010-1.414z" clipRule="evenodd" />
+                    </svg>
+                    Descargar Guía en PDF
+                </>
+            )}
+        </button>
+      </div>
+
+      <header className="text-center mb-10">
+        <h1 className="text-4xl md:text-5xl font-bold text-navy">{preserve.name}</h1>
+      </header>
+      
+      {loading && <LoadingSpinner message={currentLoadingMessage} />}
+      {error && <div className="text-center text-red-600 bg-red-100 p-4 rounded-lg">{error}</div>}
+
+      {geminiData && (
+        <>
+          <Section title="Definición del Producto">
+            <p className="text-gray-700 italic">{geminiData.definition}</p>
+          </Section>
+
+          <Section title="Proceso de Elaboración">
+             <p className="text-gray-600 mb-6 text-center">Haz clic en cada etapa del diagrama para ver los detalles.</p>
+            <Flowchart steps={geminiData.process} activeStepId={activeStepId} onStepClick={handleStepClick} />
+          </Section>
+
+          {preserve.criticalPoints && (
+            <Section title="Puntos Críticos de Control">
+                <div className="flex flex-wrap gap-4">
+                    {preserve.criticalPoints.ph && (
+                        <div className="bg-blue-100 text-blue-800 p-4 rounded-lg flex-1 text-center">
+                            <span className="font-bold text-lg">pH Objetivo:</span>
+                            <p className="text-xl">{preserve.criticalPoints.ph}</p>
+                        </div>
+                    )}
+                    {preserve.criticalPoints.brix && (
+                         <div className="bg-green-100 text-green-800 p-4 rounded-lg flex-1 text-center">
+                            <span className="font-bold text-lg">Brix Objetivo:</span>
+                            <p className="text-xl">{preserve.criticalPoints.brix}</p>
+                        </div>
+                    )}
+                </div>
+            </Section>
+          )}
+
+          <Section title="Video Tutoriales">
+            <div className="aspect-w-16 aspect-h-9 rounded-lg overflow-hidden shadow-lg">
+                <iframe 
+                    className="w-full h-full"
+                    style={{ aspectRatio: '16/9' }}
+                    src={`https://www.youtube.com/embed/videoseries?list=${geminiData.youtubePlaylistId}`} 
+                    title="YouTube video player" 
+                    frameBorder="0" 
+                    allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" 
+                    allowFullScreen>
+                </iframe>
+            </div>
+          </Section>
+
+          <Section title="Esterilización">
+                <div className="bg-yellow-100 border-l-4 border-yellow-500 text-yellow-800 p-4 rounded-r-lg mb-6" role="alert">
+                    <p className="font-bold">¡Atención!</p>
+                    <p>El correcto cumplimiento de los tiempos de esterilización es crucial para eliminar la carga microbiana y garantizar la inocuidad del producto final.</p>
+                </div>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
+                    {preserve.sterilizationTimes.map((item) => (
+                        <div key={item.name} className="bg-white p-4 border border-gray-200 rounded-lg flex flex-col items-center text-center shadow">
+                            <img src={item.image} alt={item.name} className="w-24 h-24 object-contain mb-3 rounded-full bg-gray-100 p-2" />
+                            <p className="font-semibold text-navy">{item.name}</p>
+                            <p className="text-2xl font-bold text-blue-700 mt-1">{item.time} min</p>
+                        </div>
+                    ))}
+                </div>
+           </Section>
+
+           <Section title="Más Información">
+                <p className="text-gray-700">
+                Para garantizar la máxima seguridad, se aconseja verificar los Puntos Críticos de Control. Puedes realizar una medición precisa de pH o grados Brix en nuestro establecimiento:
+                </p>
+                <div className="my-4 text-center">
+                    <a 
+                        href="https://maps.app.goo.gl/66CjQkvAAtGXTgLo6" 
+                        target="_blank" 
+                        rel="noopener noreferrer"
+                        className="inline-block bg-blue-600 text-white font-bold py-2 px-6 rounded-full hover:bg-blue-700 transition-colors duration-300"
+                    >
+                        Ver Dirección en Google Maps
+                    </a>
+                </div>
+                <p className="text-gray-700 mt-2">
+                Alternativamente, para una estimación del pH desde casa, recomendamos utilizar la app <span className="font-bold text-navy">Moracol</span>, que ofrece una mayor precisión que las tiras reactivas.
+                </p>
+                <div className="mt-6 text-center">
+                    <a 
+                        href="https://play.google.com/store/apps/details?id=com.moracol.app" 
+                        target="_blank" 
+                        rel="noopener noreferrer"
+                        className="inline-block bg-navy text-white font-bold py-3 px-8 rounded-full hover:bg-blue-800 transition-colors duration-300 shadow-lg"
+                    >
+                        Descargar App Moracol
+                    </a>
+                </div>
+           </Section>
+        </>
+      )}
+       
+       <Modal
+            isOpen={!!activeStep}
+            onClose={handleCloseModal}
+            title={activeStep?.title || ''}
+        >
+            {activeStep && <p className="text-gray-700 whitespace-pre-wrap">{activeStep.description}</p>}
+        </Modal>
+
+        <button 
+            onClick={() => setChatOpen(true)}
+            className="fixed bottom-6 right-6 bg-navy text-white rounded-full p-4 shadow-lg hover:bg-blue-800 transition-transform hover:scale-110 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
+            aria-label="Abrir asistente de IA"
+        >
+            <svg xmlns="http://www.w3.org/2000/svg" className="h-8 w-8" viewBox="0 0 20 20" fill="currentColor">
+              <path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-5.5-2.5a2.5 2.5 0 11-5 0 2.5 2.5 0 015 0zM10 12a5.5 5.5 0 00-5.5 5.5A.5.5 0 005 18h10a.5.5 0 00.5-.5A5.5 5.5 0 0010 12z" clipRule="evenodd" />
+            </svg>
+        </button>
+        
+        <Chatbot 
+            isOpen={isChatOpen} 
+            onClose={() => setChatOpen(false)}
+            preserveName={preserve.name}
+        />
+
+    </div>
+  );
+};
+// --- END: components/PreserveDetail.tsx ---
+
+// --- START: components/ModeSelector.tsx ---
+const ModeCard = ({ title, description, icon, onClick }) => (
+    <div 
+        onClick={onClick}
+        className="bg-white rounded-2xl shadow-lg p-8 text-center cursor-pointer transform hover:scale-105 transition-transform duration-300 ease-in-out flex flex-col items-center gap-4 border-2 border-transparent hover:border-blue-500"
+    >
+        <div className="text-blue-600">{icon}</div>
+        <h3 className="text-2xl font-bold text-navy">{title}</h3>
+        <p className="text-gray-600">{description}</p>
+    </div>
+);
+
+const ModeSelector = ({ onSelectMode }) => {
+    return (
+        <div className="bg-light-gray min-h-screen flex flex-col justify-center items-center p-4 font-sans">
+            <header className="text-center mb-12">
+                <h1 className="text-4xl md:text-5xl font-bold text-navy mb-2">Bienvenido a Hecho por Mi</h1>
+                <p className="text-lg text-gray-600 max-w-2xl mx-auto">
+                    Para empezar, elige el modo que mejor se adapte a tus conocimientos.
+                </p>
+            </header>
+            <div className="w-full max-w-4xl grid grid-cols-1 md:grid-cols-2 gap-8">
+                <ModeCard
+                    title="Modo Profesional"
+                    description="Para estudiantes y profesionales del sector alimentario. Contenido con terminología técnica y enfoque científico."
+                    icon={<svg xmlns="http://www.w3.org/2000/svg" className="h-16 w-16" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path d="M12 14l9-5-9-5-9 5 9 5z" /><path d="M12 14l6.16-3.422a12.083 12.083 0 01.665 6.479A11.952 11.952 0 0012 20.055a11.952 11.952 0 00-6.824-9.998 12.078 12.078 0 01.665-6.479L12 14z" /><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 14l9-5-9-5-9 5 9 5zm0 0v6" /></svg>}
+                    onClick={() => onSelectMode('profesional')}
+                />
+                <ModeCard
+                    title="Modo Principiante"
+                    description="Para familias, emprendedores y entusiastas de la cocina. Guías paso a paso con un lenguaje claro y sencillo."
+                    icon={<svg xmlns="http://www.w3.org/2000/svg" className="h-16 w-16" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6" /></svg>}
+                    onClick={() => onSelectMode('principiante')}
+                />
+            </div>
+             <footer className="text-center mt-16 text-gray-500 text-sm">
+                <p className="font-bold">Escuela 4-188 Padre Eduardo Sergio Iácono</p>
+                <p>Técnica en Tecnología de los Alimentos</p>
+            </footer>
+        </div>
+    );
+};
+// --- END: components/ModeSelector.tsx ---
+
+// --- START: App.tsx ---
+const App = () => {
+  const [mode, setMode] = useState(null);
+  const [selectedCategory, setSelectedCategory] = useState(null);
+  const [selectedPreserve, setSelectedPreserve] = useState(null);
+
+  const handleSelectPreserve = (preserve) => {
+    setSelectedPreserve(preserve);
+    window.scrollTo(0, 0);
+  };
+
+  const handleSelectCategory = (category) => {
+    setSelectedCategory(category);
+    window.scrollTo(0, 0);
+  }
+
+  const handleBackToCategories = () => {
+    setSelectedCategory(null);
+  }
+  
+  const handleBackToPreserves = () => {
+    setSelectedPreserve(null);
+  }
+
+  const handleModeSelect = (selectedMode) => {
+    setMode(selectedMode);
+  };
+
+  const handleChangeMode = () => {
+    setMode(null);
+    setSelectedCategory(null);
+    setSelectedPreserve(null);
+  };
+
+  if (!mode) {
+    return <ModeSelector onSelectMode={handleModeSelect} />;
+  }
+
+  return (
+    <div className="bg-light-gray min-h-screen font-sans text-gray-800">
+      <main>
+        {selectedPreserve ? (
+          <PreserveDetail preserve={selectedPreserve} mode={mode} onBack={handleBackToPreserves} />
+        ) : selectedCategory ? (
+            <div className="container mx-auto px-4 py-12">
+                 <header className="mb-12">
+                    <div className="flex justify-between items-start mb-4 flex-wrap gap-4">
+                        <div>
+                             <button 
+                              onClick={handleBackToCategories} 
+                              className="text-navy font-bold mb-4 flex items-center hover:underline"
+                            >
+                              <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 19l-7-7m0 0l7-7m-7 7h18" />
+                              </svg>
+                              Volver a Categorías
+                            </button>
+                            <h1 className="text-4xl md:text-5xl font-bold text-navy">{selectedCategory.name}</h1>
+                            <p className="text-lg text-gray-600 max-w-3xl mt-2">
+                                Elige una receta para comenzar.
+                            </p>
+                        </div>
+                        <button 
+                          onClick={handleChangeMode} 
+                          className="bg-gray-200 text-navy font-bold py-2 px-6 rounded-full hover:bg-gray-300 transition-colors duration-300 flex items-center shadow-sm"
+                        >
+                          <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7h12m0 0l-4-4m4 4l-4 4m0 6H4m0 0l4 4m-4-4l4-4" />
+                          </svg>
+                          Cambiar Modo
+                        </button>
+                    </div>
+                </header>
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-8">
+                    {selectedCategory.preserves.map((preserve) => (
+                        <PreserveCard 
+                        key={preserve.id} 
+                        preserve={preserve} 
+                        onSelect={handleSelectPreserve} 
+                        />
+                    ))}
+                </div>
+                 <footer className="text-center mt-16 text-gray-500 text-sm">
+                    <p className="font-bold">Escuela 4-188 Padre Eduardo Sergio Iácono</p>
+                    <p>Técnica en Tecnología de los Alimentos</p>
+                    <p className="mt-4">&copy; 2024 Hecho por Mi. Todos los derechos reservados.</p>
+                </footer>
+            </div>
+        ) : (
+          <div className="container mx-auto px-4 py-12">
+            <header className="mb-12">
+                <div className="flex justify-between items-center mb-4 flex-wrap gap-4">
+                    <h1 className="text-4xl md:text-5xl font-bold text-navy">Hecho por Mi</h1>
+                    <button 
+                      onClick={handleChangeMode} 
+                      className="bg-gray-200 text-navy font-bold py-2 px-6 rounded-full hover:bg-gray-300 transition-colors duration-300 flex items-center shadow-sm"
+                    >
+                      <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7h12m0 0l-4-4m4 4l-4 4m0 6H4m0 0l4 4m-4-4l4-4" />
+                      </svg>
+                      Cambiar Modo
+                    </button>
+                </div>
+                <p className="text-lg text-gray-600 max-w-3xl">
+                    Tu guía para crear conservas caseras deliciosas y seguras. Elige una categoría para explorar las recetas.
+                </p>
+            </header>
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-8">
+              {CATEGORIES.map((category) => (
+                <CategoryCard
+                  key={category.id} 
+                  category={category} 
+                  onSelect={handleSelectCategory} 
+                />
+              ))}
+            </div>
+             <footer className="text-center mt-16 text-gray-500 text-sm">
+                <p className="font-bold">Escuela 4-188 Padre Eduardo Sergio Iácono</p>
+                <p>Técnica en Tecnología de los Alimentos</p>
+                <p className="mt-4">&copy; 2024 Hecho por Mi. Todos los derechos reservados.</p>
+            </footer>
+          </div>
+        )}
+      </main>
+    </div>
+  );
+};
+// --- END: App.tsx ---
+
+// --- START: index.tsx ---
+const rootElement = document.getElementById('root');
+if (!rootElement) {
+  throw new Error("Could not find root element to mount to");
+}
+
+const root = ReactDOM.createRoot(rootElement);
+root.render(
+  <React.StrictMode>
+    <App />
+  </React.StrictMode>
+);
+// --- END: index.tsx ---
+    </script>
+  </body>
+</html>
